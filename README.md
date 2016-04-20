@@ -3,6 +3,8 @@
 [![Build Status](https://travis-ci.org/Houdini/two_factor_authentication.svg?branch=master)](https://travis-ci.org/Houdini/two_factor_authentication)
 [![Code Climate](https://codeclimate.com/github/Houdini/two_factor_authentication.png)](https://codeclimate.com/github/Houdini/two_factor_authentication)
 
+This fork is made to work with mongoid.
+
 ## Features
 
 * configurable OTP code digit length
@@ -29,19 +31,7 @@ Note that Ruby 2.0 or greater is required.
 ### Installation
 
 #### Automatic initial setup
-To set up the model and database migration file automatically, run the
-following command:
-
-    bundle exec rails g two_factor_authentication MODEL
-
-Where MODEL is your model name (e.g. User or Admin). This generator will add
-`:two_factor_authenticatable` to your model's Devise options and create a
-migration in `db/migrate/`, which will add the following columns to your table:
-
-- `:second_factor_attempts_count`
-- `:encrypted_otp_secret_key`
-- `:encrypted_otp_secret_key_iv`
-- `:encrypted_otp_secret_key_salt`
+Not possible with mongoid for the moment. However, the manual setup is pretty simple!
 
 #### Manual initial setup
 If you prefer to set up the model and migration manually, add the
@@ -52,25 +42,20 @@ devise :database_authenticatable, :registerable, :recoverable, :rememberable,
        :trackable, :validatable, :two_factor_authenticatable
 ```
 
-Then create your migration file using the Rails generator, such as:
-
-```
-rails g migration AddTwoFactorFieldsToUsers second_factor_attempts_count:integer encrypted_otp_secret_key:string:index encrypted_otp_secret_key_iv:string encrypted_otp_secret_key_salt:string
-```
-
-Open your migration file (it will be in the `db/migrate` directory and will be
-named something like `20151230163930_add_two_factor_fields_to_users.rb`), and
-add `unique: true` to the `add_index` line so that it looks like this:
-
+Then add the needed fields and index to you model:
 ```ruby
-add_index :users, :encrypted_otp_secret_key, unique: true
+# Two factor authenticable
+field :second_factor_attempts_count, type: Integer, default: 0
+field :encrypted_otp_secret_key
+field :encrypted_otp_secret_key_iv
+field :encrypted_otp_secret_key_salt
+index({ encrypted_otp_secret_key: 1 }, { unique: true })
 ```
-Save the file.
 
 #### Complete the setup
-Run the migration with:
+Create the index with:
 
-    bundle exec rake db:migrate
+    bundle exec rake db:mongoid:create_indexes
 
 Add the following line to your model to fully enable two-factor auth:
 
@@ -164,76 +149,16 @@ Then run the task with `bundle exec rake update_users_with_otp_secret_key`
 
 #### Adding the OTP encryption option to an existing app
 
-If you've already been using this gem, and want to start encrypting the OTP
-secret key in the database (recommended), you'll need to perform the following
-steps:
-
-1. Generate a migration to add the necessary columns to your model's table:
-
-   ```
-   rails g migration AddEncryptionFieldsToUsers encrypted_otp_secret_key:string:index encrypted_otp_secret_key_iv:string encrypted_otp_secret_key_salt:string
-   ```
-
-   Open your migration file (it will be in the `db/migrate` directory and will be
-   named something like `20151230163930_add_encryption_fields_to_users.rb`), and
-   add `unique: true` to the `add_index` line so that it looks like this:
-
+1. Follow the manual installation
+2. Create and run a task to create users secret keys, such as
    ```ruby
-   add_index :users, :encrypted_otp_secret_key, unique: true
-   ```
-   Save the file.
-
-2. Run the migration: `bundle exec rake db:migrate`
-
-2. Update the gem: `bundle update two_factor_authentication`
-
-3. Add `encrypted: true` to `has_one_time_password` in your model.
-   For example: `has_one_time_password(encrypted: true)`
-
-4. Generate a migration to populate the new encryption fields:
-   ```
-   rails g migration PopulateEncryptedOtpFields
-   ```
-
-   Open the generated file, and replace its contents with the following:
-   ```ruby
-   class PopulateEncryptedOtpFields < ActiveRecord::Migration
-      def up
-        User.reset_column_information
-
-        User.find_each do |user|
-          user.otp_secret_key = user.read_attribute('otp_secret_key')
-          user.save!
-        end
-      end
-
-      def down
-        User.reset_column_information
-
-        User.find_each do |user|
-          user.otp_secret_key = ROTP::Base32.random_base32
-          user.save!
-        end
-      end
-    end
-  ```
-
-5. Generate a migration to remove the `:otp_secret_key` column:
-   ```
-   rails g migration RemoveOtpSecretKeyFromUsers otp_secret_key:string
-   ```
-
-6. Run the migrations: `bundle exec rake db:migrate`
-
-If, for some reason, you want to switch back to the old non-encrypted version,
-use these steps:
-
-1. Remove `(encrypted: true)` from `has_one_time_password`
-
-2. Roll back the last 3 migrations (assuming you haven't added any new ones
-after them):
-   ```
-   bundle exec rake db:rollback STEP=3
+   desc 'rake task to update users with otp secret key'
+   task update_users_with_otp_secret_key: :environment do
+     User.each do |user|
+       user.otp_secret_key = ROTP::Base32.random_base32
+       user.save!
+     end
+   end
    ```
 
 #### Executing some code after the user signs in and before they sign out
