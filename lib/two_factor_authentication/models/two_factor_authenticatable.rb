@@ -17,7 +17,8 @@ module Devise
 
         ::Devise::Models.config(
           self, :max_login_attempts, :allowed_otp_drift_seconds, :otp_length,
-          :remember_otp_session_for_seconds, :otp_secret_encryption_key)
+          :remember_otp_session_for_seconds, :otp_secret_encryption_key,
+          :unlock_otp_after_seconds)
       end
 
       module InstanceMethodsOnActivation
@@ -50,12 +51,30 @@ module Devise
           raise NotImplementedError.new("No default implementation - please define in your class.")
         end
 
+        def inc_second_factor_attemps_count
+          previous = second_factor_attempts_count
+          self.second_factor_attempts_count += 1
+          return unless max_login_attempts? && previous < max_login_attempts
+          self.last_otp_lock = DateTime.now
+        end
+
         def max_login_attempts?
-          second_factor_attempts_count.to_i >= max_login_attempts.to_i
+          second_factor_attempts_count.to_i >= max_login_attempts
+        end
+
+        def allow_otp_unlock?
+          unlock_otp_after_seconds > 0 &&
+            second_factor_attempts_count.to_i >= max_login_attempts &&
+            !last_otp_lock.nil? &&
+            DateTime.now > last_otp_lock + unlock_otp_after_seconds
         end
 
         def max_login_attempts
-          self.class.max_login_attempts
+          self.class.max_login_attempts.to_i
+        end
+
+        def unlock_otp_after_seconds
+          self.class.unlock_otp_after_seconds
         end
 
         def populate_otp_column

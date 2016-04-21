@@ -65,6 +65,7 @@ Set config values in `config/initializers/devise.rb`:
 
 ```ruby
 config.max_login_attempts = 3  # Maximum second factor attempts count.
+config.unlock_otp_after_seconds = 0 # Time to wait before lock timeout. 0 disables automatic unlock.
 config.allowed_otp_drift_seconds = 30  # Allowed time drift between client and server.
 config.otp_length = 6  # OTP code length
 config.remember_otp_session_for_seconds = 30.days  # Time before browser has to enter OTP code again. Default is 0.
