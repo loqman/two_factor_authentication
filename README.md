@@ -46,6 +46,7 @@ Then add the needed fields and index to you model:
 ```ruby
 # Two factor authenticable
 field :second_factor_attempts_count, type: Integer, default: 0
+field :last_otp_lock, type: Time
 field :encrypted_otp_secret_key
 field :encrypted_otp_secret_key_iv
 field :encrypted_otp_secret_key_salt
