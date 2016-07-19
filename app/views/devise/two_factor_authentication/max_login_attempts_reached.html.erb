@@ -1,3 +1,6 @@
 <h2><%= I18n.t("devise.two_factor_authentication.max_login_attempts_reached") %> = <%= @limit %>.</h2>
-<p><%= I18n.t("devise.two_factor_authentication.contact_administrator") %></p>
-
+<% if @lock_timeout > 0 %>
+  <p><%= I18n.t("devise.two_factor_authentication.unlock_in_time") + ' ' + time_ago_in_words(@unlock_time, include_seconds: true) + '.' %></p>
+<% else %>
+  <p><%= I18n.t("devise.two_factor_authentication.contact_administrator") %></p>
+<% end %>

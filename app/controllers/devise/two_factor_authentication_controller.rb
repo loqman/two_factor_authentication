@@ -45,11 +45,12 @@ class Devise::TwoFactorAuthenticationController < DeviseController
   end
 
   def after_two_factor_fail_for(resource)
-    resource.second_factor_attempts_count += 1
+    resource.inc_second_factor_attemps_count
     resource.save
     flash.now[:error] = find_message(:attempt_failed)
 
     if resource.max_login_attempts?
+      set_unlock_time
       sign_out(resource)
       render :max_login_attempts_reached
 
@@ -65,9 +66,15 @@ class Devise::TwoFactorAuthenticationController < DeviseController
   def prepare_and_validate
     redirect_to :root and return if resource.nil?
     @limit = resource.max_login_attempts
+    @lock_timeout = resource.unlock_otp_after_seconds
     if resource.max_login_attempts?
+      set_unlock_time
       sign_out(resource)
       render :max_login_attempts_reached and return
     end
+  end
+
+  def set_unlock_time
+    @unlock_time = resource.last_otp_lock + @lock_timeout
   end
 end
