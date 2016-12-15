@@ -67,7 +67,7 @@ class Devise::TwoFactorAuthenticationController < DeviseController
     redirect_to :root and return if resource.nil?
     @limit = resource.max_login_attempts
     @lock_timeout = resource.unlock_otp_after_seconds
-    if resource.max_login_attempts?
+    if resource.allow_otp_unlock?
       set_unlock_time
       sign_out(resource)
       render :max_login_attempts_reached and return
