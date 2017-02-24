@@ -11,43 +11,57 @@ module Devise
         def has_one_time_password(options = {})
           include InstanceMethodsOnActivation
           include EncryptionInstanceMethods if options[:encrypted] == true
-
-          before_create { populate_otp_column }
         end
 
         ::Devise::Models.config(
           self, :max_login_attempts, :allowed_otp_drift_seconds, :otp_length,
           :remember_otp_session_for_seconds, :otp_secret_encryption_key,
-          :unlock_otp_after_seconds)
+          :direct_otp_length, :direct_otp_valid_for, :totp_timestamp)
       end
 
       module InstanceMethodsOnActivation
         def authenticate_otp(code, options = {})
-          totp = ROTP::TOTP.new(
-            otp_secret_key, digits: options[:otp_length] || self.class.otp_length
-          )
-          drift = options[:drift] || self.class.allowed_otp_drift_seconds
-
-          totp.verify_with_drift(code, drift)
+          return true if direct_otp && authenticate_direct_otp(code)
+          return true if totp_enabled? && authenticate_totp(code, options)
+          false
         end
 
-        def otp_code(time = Time.now, options = {})
-          ROTP::TOTP.new(
-            otp_secret_key,
-            digits: options[:otp_length] || self.class.otp_length
-          ).at(time, true)
+        def authenticate_direct_otp(code)
+          return false if direct_otp.nil? || direct_otp != code || direct_otp_expired?
+          clear_direct_otp
+          true
+        end
+
+        def authenticate_totp(code, options = {})
+          totp_secret = options[:otp_secret_key] || otp_secret_key
+          digits = options[:otp_length] || self.class.otp_length
+          drift = options[:drift] || self.class.allowed_otp_drift_seconds
+          raise "authenticate_totp called with no otp_secret_key set" if totp_secret.nil?
+          totp = ROTP::TOTP.new(totp_secret, digits: digits)
+          new_timestamp = totp.verify_with_drift_and_prior(code, drift, totp_timestamp)
+          return false unless new_timestamp
+          self.totp_timestamp = new_timestamp
+          true
         end
 
         def provisioning_uri(account = nil, options = {})
-          account ||= self.email if self.respond_to?(:email)
-          ROTP::TOTP.new(otp_secret_key, options).provisioning_uri(account)
+          totp_secret = options[:otp_secret_key] || otp_secret_key
+          options[:digits] ||= options[:otp_length] || self.class.otp_length
+          raise "provisioning_uri called with no otp_secret_key set" if totp_secret.nil?
+          account ||= email if respond_to?(:email)
+          ROTP::TOTP.new(totp_secret, options).provisioning_uri(account)
         end
 
         def need_two_factor_authentication?(request)
           true
         end
 
-        def send_two_factor_authentication_code
+        def send_new_otp(options = {})
+          create_direct_otp options
+          send_two_factor_authentication_code(direct_otp)
+        end
+
+        def send_two_factor_authentication_code(code)
           raise NotImplementedError.new("No default implementation - please define in your class.")
         end
 
@@ -77,8 +91,41 @@ module Devise
           self.class.unlock_otp_after_seconds
         end
 
-        def populate_otp_column
-          self.otp_secret_key = ROTP::Base32.random_base32
+        def totp_enabled?
+          respond_to?(:otp_secret_key) && !otp_secret_key.nil?
+        end
+
+        def confirm_totp_secret(secret, code, options = {})
+          return false unless authenticate_totp(code, {otp_secret_key: secret})
+          self.otp_secret_key = secret
+          true
+        end
+
+        def generate_totp_secret
+          ROTP::Base32.random_base32
+        end
+
+        def create_direct_otp(options = {})
+          # Create a new random OTP and store it in the database
+          digits = options[:length] || self.class.direct_otp_length || 6
+          update_attributes(
+            direct_otp: random_base10(digits),
+            direct_otp_sent_at: Time.now.utc
+          )
+        end
+
+        private
+
+        def random_base10(digits)
+          SecureRandom.random_number(10**digits).to_s.rjust(digits, '0')
+        end
+
+        def direct_otp_expired?
+          Time.now.utc > direct_otp_sent_at + self.class.direct_otp_valid_for
+        end
+
+        def clear_direct_otp
+          update_attributes(direct_otp: nil, direct_otp_sent_at: nil)
         end
       end
 
