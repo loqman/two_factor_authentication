@@ -20,10 +20,6 @@ if Gem::Version.new(RUBY_VERSION) >= Gem::Version.new('2.2.0')
   gem "test-unit", "~> 3.0"
 end
 
-group :test, :development do
-  gem 'sqlite3'
-end
-
 group :test do
   gem 'rack_session_access'
   gem 'ammeter'
