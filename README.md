@@ -152,13 +152,18 @@ The following database fields are new in version 2.
 - `direct_otp_sent_at`
 - `totp_timestamp`
 
-To add them, generate a migration such as:
+To add them, add these fields to your model:
 
-    $ rails g migration AddTwoFactorFieldsToUsers direct_otp:string direct_otp_sent_at:datetime totp_timestamp:timestamp
+```ruby
+field :direct_otp, type: String
+field :direct_otp_sent_at, type: DateTime
+field :totp_timestamp, type: Integer
+```
+
 
 The `otp_secret_key` is not only required for users who use Google Authentictor,
 so unless it has been shared with the user it should be set to `nil`.  The
-following psudo-code is an example of how this might be done:
+following pseudo-code is an example of how this might be done:
 
 ```ruby
 User.find_each do |user| do
