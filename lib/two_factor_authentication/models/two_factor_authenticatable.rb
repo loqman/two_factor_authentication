@@ -64,9 +64,9 @@ module Devise
 
         def allow_otp_unlock?
           unlock_otp_after_seconds > 0 &&
-            second_factor_attempts_count.to_i >= max_login_attempts &&
+            second_factor_attempts_count.to_i <= max_login_attempts &&
             !last_otp_lock.nil? &&
-            DateTime.now > last_otp_lock + unlock_otp_after_seconds
+            DateTime.now > last_otp_lock.to_time + unlock_otp_after_seconds
         end
 
         def max_login_attempts
