@@ -1,0 +1,21 @@
+engines:
+  brakeman:
+    enabled: true
+  duplication:
+    enabled: true
+    config:
+      languages:
+      - ruby
+        # mass_threshold: 30
+    exclude_paths:
+    - 'spec/**/*'
+  fixme:
+    enabled: true
+  rubocop:
+    enabled: true
+
+ratings:
+  paths:
+  - app/**
+  - lib/**
+  - '**.rb'
